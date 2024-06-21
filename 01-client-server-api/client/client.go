@@ -84,7 +84,7 @@ func PersistCurrencyExchangeInfo(exchRate *ExchangeRate) error {
 		return err
 	}
 
-	log.Println("[info] File " + OutputFile + " saved with success! Size : " + strconv.Itoa(size) + " bytes")
+	log.Println("[info] File " + OutputFile + " saved with success! Size: " + strconv.Itoa(size) + " bytes")
 
 	return nil
 }

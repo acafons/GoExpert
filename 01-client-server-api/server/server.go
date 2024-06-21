@@ -34,6 +34,8 @@ type ExchangeRate struct {
 
 const HttpRequestTimeout = 200 * time.Millisecond
 const DataPersistenceTimeout = 10 * time.Millisecond
+const HttpServerTimeout = 300 * time.Millisecond
+const EconomiaUrl = "https://economia.awesomeapi.com.br/json/last/USD-BRL"
 
 func main() {
 	InitDB()
@@ -42,39 +44,57 @@ func main() {
 
 	mux.HandleFunc("/cotacao", DollarExchangeRateHandler)
 
-	log.Println("Listening on :3000...")
+	log.Println("[info] Listening on :8080...")
 	http.ListenAndServe(":8080", mux)
 }
 
 func DollarExchangeRateHandler(w http.ResponseWriter, r *http.Request) {
+	//log.Println("------------------------------------------")
+	log.Println("[info] Incoming request from: " + r.RemoteAddr)
+
+	defer log.Println("[info] Listening on :8080...")
+	defer log.Println("------------------------------------------")
+	defer log.Println("[info] Request finalized")
+
+	ctx, cancel := context.WithTimeout(r.Context(), HttpServerTimeout)
+	defer cancel()
+
 	exchInfo, err := GetCurrencyExchangeInfo()
 	if err != nil {
-		log.Println("Error: ", err)
+		log.Println("[error]", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	log.Println("[info] Sending " + exchInfo.Usdbrl.Name + ": " + exchInfo.Usdbrl.Bid)
 
 	err = PersistCurrencyExchangeInfo(exchInfo)
 	if err != nil {
-		log.Println("Error: ", err)
+		log.Println("[error]", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	select {
+	case <-ctx.Done():
+		log.Println("[warn] Request canceled by client.")
 
-	var exchRate ExchangeRate
-	exchRate.Bid = exchInfo.Usdbrl.Bid
+	default:
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
 
-	json.NewEncoder(w).Encode(exchRate)
+		var exchRate ExchangeRate
+		exchRate.Bid = exchInfo.Usdbrl.Bid
+
+		json.NewEncoder(w).Encode(exchRate)
+	}
 }
 
 func GetCurrencyExchangeInfo() (*CurrencyExchangeInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), HttpRequestTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://economia.awesomeapi.com.br/json/last/USD-BRL", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", EconomiaUrl, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -97,8 +117,6 @@ func GetCurrencyExchangeInfo() (*CurrencyExchangeInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	log.Println(exchInfo)
 
 	return &exchInfo, nil
 }
