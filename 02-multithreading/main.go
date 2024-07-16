@@ -14,7 +14,7 @@ type Message struct {
 const HttpResponseTimeout = 1 * time.Second
 
 func main() {
-	if (len(os.Args) - 1) == 0 {
+	if len(os.Args)-1 == 0 {
 		log.Println("[error] No CEPs informed")
 		log.Println("[info] Usage: go run . 01153000")
 		return
